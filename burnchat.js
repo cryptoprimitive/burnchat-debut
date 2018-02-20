@@ -21,6 +21,7 @@ const ContractABI = [{"constant":true,"inputs":[{"name":"","type":"uint256"}],"n
             switch(e.event){
                 case "NewMessage" : {
                     let m = {};
+                    m.message = e.args.message;
                     m.messageID = e.args.messageID;
                     m.from = e.args.from;
                     m.balance = e.args.amountDeposited;
