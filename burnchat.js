@@ -17,12 +17,12 @@ const ContractABI = [{"constant":true,"inputs":[{"name":"","type":"uint256"}],"n
         const events = await this.getAllEvents(fromBlock);
         events.sort((a,b) => { return a.blockNumber - b.blockNumber });
         for(let e of events) {
-            let i = messages.findIndex(el => el.messageID == e.args.messageID.toNumber());
+            let i = messages.findIndex(el => el.messageID === e.args.messageID.toNumber());
             switch(e.event){
                 case "NewMessage" : {
                     let m = {};
                     m.message = e.args.message;
-                    m.messageID = e.args.messageID;
+                    m.messageID = e.args.messageID.toNumber();
                     m.from = e.args.from;
                     m.balance = e.args.amountDeposited;
                     m.burnFactor = e.args.burnFactor.dividedBy(1000).toNumber();
@@ -32,7 +32,7 @@ const ContractABI = [{"constant":true,"inputs":[{"name":"","type":"uint256"}],"n
                     m.intialBurn = e.args.amountBurned;
                     m.burnedByOthers = new web3.BigNumber(0);
                     m.totalTipped = new web3.BigNumber(0);
-                    m.state = "active";
+                    m.state = e.args.amountDeposited.toNumber() == 0 ? "smoked" : "active";
                     messages.push(m);
                     break;
                 }
@@ -47,7 +47,9 @@ const ContractABI = [{"constant":true,"inputs":[{"name":"","type":"uint256"}],"n
                     break;
                 }
                 case "MessageSmoked" : {
+                    try{
                     messages[i].state = "smoked";
+                    } catch (e) {}
                     break;
                 }
                 case "MessageFinalized" : {
@@ -58,6 +60,59 @@ const ContractABI = [{"constant":true,"inputs":[{"name":"","type":"uint256"}],"n
             }
         }
         return messages;
+    }
+
+
+    finalizeMessage(messageID){
+        return new Promise((resolve, reject) =>{
+            this.burnChatManager.contractInstance.finalizeMessage.sendTransaction(messageID, {gas: 100000}, (err, res) => {
+                    if(err){
+                        reject(err);
+                    }
+                    if(res){
+                        resolve(res);
+                    }
+                });
+        })
+    }
+
+    burnMessage(messageID, amount){
+        return new Promise((resolve, reject) =>{
+            this.burnChatManager.contractInstance.burnMessage.sendTransaction(messageID, {value: amount, gas: 100000}, (err, res) => {
+                    if(err){
+                        reject(err);
+                    }
+                    if(res){
+                        resolve(res);
+                    }
+                });
+        })
+    }
+
+    tipMessage(messageID, amount){
+        return new Promise((resolve, reject) =>{
+            this.burnChatManager.contractInstance.tipMessage.sendTransaction(messageID, {value: amount, gas: 100000}, (err, res) => {
+                    if(err){
+                        reject(err);
+                    }
+                    if(res){
+                        resolve(res);
+                    }
+                });
+        })
+    }
+
+    postMessage(message, value, initialBurn, finalizeInterval, burnFactor){
+        return new Promise((resolve, reject) =>{
+            this.burnChatManager.contractInstance.post.sendTransaction(message, initialBurn, finalizeInterval, burnFactor, {value: value, gas: 1000000}, (err, res) => {
+                    if(err){
+                        reject(err);
+                    }
+                    if(res){
+                        resolve(res);
+                    }
+                });
+        })
     }
 
     getBlockTimeStamp(blockHash){
@@ -81,10 +136,11 @@ const ContractABI = [{"constant":true,"inputs":[{"name":"","type":"uint256"}],"n
                 }
                 if(res){
                     resolve(res);
+                    console.log(res);
                 }
             });
         })
     }
-
 }
+
 
