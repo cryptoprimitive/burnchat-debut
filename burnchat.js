@@ -2,7 +2,7 @@
 const ContractABI = [{"constant":true,"inputs":[{"name":"","type":"uint256"}],"name":"activeMessages","outputs":[{"name":"from","type":"address"},{"name":"balance","type":"uint256"},{"name":"burnFactor","type":"uint256"},{"name":"finalizeTime","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"anonymous":false,"inputs":[{"indexed":false,"name":"messageID","type":"uint256"},{"indexed":false,"name":"burner","type":"address"},{"indexed":false,"name":"initiatingBurn","type":"uint256"},{"indexed":false,"name":"resultingBurn","type":"uint256"}],"name":"MessageBurned","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"messageID","type":"uint256"},{"indexed":false,"name":"amountReturned","type":"uint256"}],"name":"MessageFinalized","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"messageID","type":"uint256"}],"name":"MessageSmoked","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"messageID","type":"uint256"},{"indexed":false,"name":"tipper","type":"address"},{"indexed":false,"name":"amount","type":"uint256"}],"name":"MessageTipped","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"messageID","type":"uint256"},{"indexed":false,"name":"from","type":"address"},{"indexed":false,"name":"message","type":"string"},{"indexed":false,"name":"amountBurned","type":"uint256"},{"indexed":false,"name":"amountDeposited","type":"uint256"},{"indexed":false,"name":"finalizeTime","type":"uint256"},{"indexed":false,"name":"burnFactor","type":"uint256"}],"name":"NewMessage","type":"event"},{"constant":false,"inputs":[{"name":"messageID","type":"uint256"}],"name":"burnMessage","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[{"name":"messageID","type":"uint256"}],"name":"finalizeMessage","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"message","type":"string"},{"name":"initialBurn","type":"uint256"},{"name":"finalizeInterval","type":"uint256"},{"name":"burnFactor","type":"uint256"}],"name":"post","outputs":[{"name":"","type":"uint256"}],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[{"name":"messageID","type":"uint256"}],"name":"tipMessage","outputs":[],"payable":true,"stateMutability":"payable","type":"function"}];
 
  class BurnChatAPI {
-    constructor(address, web3){
+    constructor(address, web3, eventCallback){
         this.web3 = web3;
         this.contractAddress = address;
         this.burnChatManager = {
@@ -10,6 +10,7 @@ const ContractABI = [{"constant":true,"inputs":[{"name":"","type":"uint256"}],"n
         }
         this.burnChatManager.contract = this.web3.eth.contract(ContractABI);
         this.burnChatManager.contractInstance = this.burnChatManager.contract.at(address);
+        this.watchEvents(eventCallback);
     }
 
     async loadHistory(fromBlock = 0){
@@ -27,7 +28,7 @@ const ContractABI = [{"constant":true,"inputs":[{"name":"","type":"uint256"}],"n
                     m.balance = e.args.amountDeposited;
                     m.burnFactor = e.args.burnFactor.dividedBy(1000).toNumber();
                     m.finalizeTime = e.args.finalizeTime.toNumber();
-                    m.postTime = await this.getBlockTimeStamp(e.blockHash);
+                    m.postTime = e.timestamp;
                     m.initialDeposit = e.args.amountDeposited;
                     m.intialBurn = e.args.amountBurned;
                     m.burnedByOthers = new web3.BigNumber(0);
@@ -128,19 +129,33 @@ const ContractABI = [{"constant":true,"inputs":[{"name":"","type":"uint256"}],"n
         })
     }
 
+    watchEvents(eventCallback) {
+        this.burnChatManager.contractInstance.allEvents({fromBlock: "latest"}).watch((err, res) => {
+            if(err){
+                console.log(err);
+            }
+            if(res){
+                eventCallback(res);
+            }
+        });
+    }
+
     getAllEvents(fromBlock) {
         return new Promise((resolve, reject) =>{
-            this.burnChatManager.contractInstance.allEvents( {fromBlock: fromBlock}).get((err, res) => {
+            this.burnChatManager.contractInstance.allEvents( {fromBlock: fromBlock}).get(async (err, res) => {
                 if(err){
                     reject(err);
                 }
                 if(res){
-                    resolve(res);
-                    console.log(res);
+                    let out = [];
+                    for(let e of res){
+                        e.timestamp = await this.getBlockTimeStamp(e.blockHash);
+                        out.push(e);
+                    }
+                    resolve(out);
                 }
             });
         })
     }
+    
 }
-
-

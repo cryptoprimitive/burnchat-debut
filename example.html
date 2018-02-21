@@ -19,10 +19,10 @@
           }
 
         /*
-        Constructor has two arguments 1)Address of burnchat contract 2) web3 object
+        Constructor has three arguments 1)Address of burnchat contract 2) web3 object 3)callback function for incoming event
         There is a a copy of the contract on ropsten at the below address.
         */
-        window.burnChatAPI = new BurnChatAPI("0x3ce3f3c6e086ff6741bde9db8f0a4407ec30ae3d", web3js);
+        window.burnChatAPI = new BurnChatAPI("0x3ce3f3c6e086ff6741bde9db8f0a4407ec30ae3d", web3js, notify);
         
         (async () => {
           const data = await window.burnChatAPI.loadHistory();
@@ -31,6 +31,10 @@
           //stringify because bigNumbers in results
         })();
         })
+
+        function notify (res){
+          alert(JSON.stringify(res));
+        }
       
       </script>
     </body>
