@@ -18,6 +18,7 @@ const ContractABI = [{"constant":true,"inputs":[{"name":"","type":"uint256"}],"n
         const events = await this.getAllEvents(fromBlock);
         events.sort((a,b) => { return a.blockNumber - b.blockNumber });
         for(let e of events) {
+            console.log(e);
             let i = messages.findIndex(el => el.messageID === e.args.messageID.toNumber());
             switch(e.event){
                 case "NewMessage" : {
@@ -159,3 +160,5 @@ const ContractABI = [{"constant":true,"inputs":[{"name":"","type":"uint256"}],"n
     }
     
 }
+
+

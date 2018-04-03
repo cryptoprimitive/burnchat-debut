@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+      <meta charset="utf-8">
+    
+      <title>Burnchat</title>
+      <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400" rel="stylesheet">
+      <link href="https://fonts.googleapis.com/css?family=Roboto+Mono" rel="stylesheet">
+      <link href="/style.css" rel="stylesheet">
+    </head>
+    <body>
+        <div id="vue-instance">
+            <div class="chat-container full-width" ref="chatContainer">
+              <div class="title-header">
+                <h1>BURNCHAT</h1>
+                <h2>Experimental ethereum chat application</h2>
+                <p class="yellow">Please report any bugs on <a target="_blank" rel="noopener" href="https://github.com/cryptoprimitive/burnchat-debut">github</a>.</p>
+              </div>
+              <div class="message-list">
+                <div class="message full-width" v-for="message in filteredMessages">
+                  <p>
+                    <span>{{new Date(message.postTime * 1000).toLocaleString()}}</span>
+                    <span>Balance: {{web3.fromWei(message.balance, 'ether').toString()}} ETH</span>
+                    <span>Intial burn: {{web3.fromWei(message.intialBurn, 'ether').toString()}} ETH</span>
+                    <span style="color:red">Burns: {{web3.fromWei(message.burnedByOthers, 'ether').toString()}} ETH</span>
+                    <span style="color:green">Tips: {{web3.fromWei(message.totalTipped, 'ether').toString()}} ETH</span>
+                    <p>
+                      Message Author:<a :href="etherscanBaseUrl() + 'address/' + message.from" v-bind:class="(message.from == web3js.eth.defaultAccount) ? 'yellow' : 'white'">{{ message.from.substring(0,8) + '...' }}</a>
+                      <input class="green-button" type="submit" v-tippy="{ html: '#tipbox-' + message.messageID, reactive : true, interactive : true, theme : 'dark', animateFill : false, trigger: 'click' }" v-on:click="setActiveMessage(message.messageID)" value="Tip">
+                      <tipbox-component :id="'tipbox-' + message.messageID" v-on:btnclick="tipMessage()" v-model="tipAmount" ></tipbox-component>
+                      <input class="red-button" type="submit" v-tippy="{ html: '#burnbox-' + message.messageID, reactive : true, interactive : true, theme : 'dark', animateFill : false, trigger: 'click' }" v-on:click="setActiveMessage(message.messageID)" value="Burn">
+                      <burnbox-component :id="'burnbox-' + message.messageID" v-on:btnclick="burnMessage()" v-model="burnAmount" ></burnbox-component>
+                      <input v-if="message.from == web3js.eth.defaultAccount && message.state == 'active' " v-bind:disabled="Math.round(new Date().getTime() / 1000) < message.finalizeTime" class="yellow-button" type="submit" v-on:click="finalizeMessage(message.messageID)" value="Finalize">
+                    </p>
+                    <vue-markdown>{{ message.message }}</vue-markdown>
+                  </p>
+                  <div class="divider" style="background:black"></div>
+                </div>
+
+              </div>
+            </div>
+            <div class="info-container full-width">
+              <h1>FILTER MESSAGES</h1>
+              <div class="options full-width">
+              <div class="filter">
+                  <h2 class="option-message">Balance(ETH)</h2>
+                  <input type="number" step ="any" placeholder="Min" id="message-input" v-model="f_minBalance">
+                  <div> < Balance < </div>
+                  <input type="number" step ="any" placeholder="∞" id="message-input" v-model="f_maxBalance">
+              </div>
+              <div class="filter">
+                  <h2 class="option-message">Age(Days)</h2>
+                  <input type="number" step ="any" placeholder="Min" id="message-input" v-model="f_minAge">
+                  <div>< Age <</div>  
+                  <input type="number" step ="any" placeholder="∞" id="message-input" v-model="f_maxAge">
+              </div>
+              <div class="filter">
+                  <h2 class="option-message">Others Burned(ETH)</h2>
+                  <input type="number" step ="any" placeholder="Min" id="message-input" v-model="f_minBurned">
+                  <div> < Burned < </div>
+                  <input type="number" step ="any" placeholder="∞" id="message-input" v-model="f_maxBurned">
+              </div>
+              <div class="filter">
+                <h2 class="option-message">Initial Burn(ETH)</h2>
+                <input type="number" step ="any" placeholder="Min" id="message-input" v-model="f_minInitialBurned">
+                <div> < Burned < </div>
+                <input type="number" step ="any" placeholder="∞" id="message-input" v-model="f_maxInitialBurned">
+              </div>
+              <div class="filter">
+                  <h2 class="option-message">Burn Factor(Multiplier)</h2>
+                  <input type="number" step ="any" placeholder="Min" id="message-input" v-model="f_minBurnFactor">
+                   <div>< Burn Factor < </div>
+                  <input type="number" step ="any" placeholder="∞" id="message-input" v-model="f_maxBurnFactor">
+              </div>
+              <div class="filter2">
+                 Only Show Active Messages?
+                  <input type="checkbox" checked="checked" v-model="f_showActiveOnly">
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="notification-list" ref="notificationContainer">
+              <h1>LOG</h1>
+              <div class="notification full-width" v-for="notification in notifications">
+                <div class="notification-timestamp">{{ notification.timestamp }}</div>
+                <div v-if="notification.message.substring(0,6) === 'TxHash' ">
+                    <p class="yellow"><a class="notification-message" v-bind:href="etherscanBaseUrl() + 'tx/' + notification.message.substring(8)" >{{ notification.message }}</a></p>
+                </div>
+                <div v-else class="notification-message">{{ notification.message }}</div>
+              </div>
+            </div>
+            
+            <div class="divider"></div>
+              <div class="options full-width">
+                <h1>NEW MESSAGE OPTIONS</h1>
+                <div class="option">
+                  <h2 class="option-message">Initial Deposit(ETH)</h2>
+                  <input type="number" step ="any" placeholder="Initial Deposit" id="message-input" v-model="deposit">
+                </div>
+                <div class="option">
+                    <h2 class="option-message">Initial Burn(ETH)</h2>
+                    <input type="number" step ="any" placeholder="Initial Burn" id="message-input" v-model="initialBurn">
+                </div>
+                <div class="option">
+                    <h2 class="option-message">Finalize Time(Hours)</h2>
+                    <input type="number" step ="any" placeholder="Finalize Time" id="message-input" v-model="finalizeInterval">
+                </div>
+                <div class="option">
+                    <h2 class="option-message">Burn Factor(Multiplier)</h2>
+                    <input type="number" step ="any" placeholder="Burn Factor" id="message-input" v-model="burnFactor">
+                </div>                
+            </div>
+            <div class="bottom-bar full-width">
+                <textarea class="message-input" placeholder="Message" v-model="draft">
+                </textarea>
+                <input class="yellow-button" style="flex: 0 0 40%" type="submit" v-on:click="sendMessage()" value="Sumbit Message">
+            </div>
+
+      </div>
+
+
+
+      <script src="web3.min.js"></script>
+      <script src="burnchat.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.4.1/vue.min.js"></script>
+      <script src="https://unpkg.com/vue-tippy/dist/vue-tippy.min.js"></script>
+      <script src="/vue-markdown.js"></script>
+      <script src= "/index.js"></script>
+
+      
+      </script>
+    </body>
+</html>
